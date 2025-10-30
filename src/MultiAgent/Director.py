@@ -137,7 +137,7 @@ builder.add_node("other_node", other_node)
 # 设置流程
 builder.add_edge(START, "supervisor_node")
 
-# 条件路由
+# 条件路由，langgraph执行引擎，如果返回值为joke_node则下一个执行任务的是joke_node
 builder.add_conditional_edges(
     "supervisor_node",
     routing_func,
