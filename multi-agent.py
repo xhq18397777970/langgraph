@@ -1,4 +1,3 @@
-# pip install -qU "langchain[anthropic]" python-dotenv langchain-openai
 import os
 from dotenv import load_dotenv
 
@@ -9,11 +8,6 @@ from config.model_config import get_deepseek_model
 # 加载环境变量
 load_dotenv()
 
-
-    
-def get_weather(city: str) -> str:
-    """Get weather for a given city."""
-    return f"It's always sunny in {city}!"
 
 # 配置 DeepSeek 模型
 model = get_deepseek_model()

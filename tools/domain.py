@@ -1,12 +1,12 @@
 
-# from fastmcp import FastMCP
+from fastmcp import FastMCP
 import hashlib
 import requests
 import time
 import json
 from langchain_core.tools import tool
 # 创建MCP服务器实例
-# mcp = FastMCP("Domain Info Service", port=8000)
+mcp = FastMCP("Domain Info Service", port=10025)
 
 # === 配置参数 ===
 DEFAULT_CONFIG = {
@@ -33,7 +33,7 @@ def build_headers(appCode: str, erp: str, timestamp: str, sign: str) -> dict:
         "sign": sign
     }
 
-# @mcp.tool()
+@mcp.tool()
 def query_domains_info(domains: list, erp: str = None, businessId: str = None) -> dict:
     """
     查询一个或多个域名的完整详细信息，包括DNS记录、负责人、项目信息等。
@@ -97,6 +97,7 @@ def query_domains_info(domains: list, erp: str = None, businessId: str = None) -
             "success": False,
             "error": f"执行异常: {str(e)}"
         }
+@mcp.tool()
 def check_domain_status(domain: str, erp: str = None, businessId: str = None) -> dict:
     """
     检测域名状态，判断域名是否空闲可用。
@@ -202,7 +203,7 @@ def get_status_description(status_code: int) -> str:
 if __name__ == "__main__":
     print("🚀 启动域名查询 MCP 服务...")
     print("📡 传输方式: SSE")
-    print(f"🔗 服务端口: 8000")
+    print(f"🔗 服务端口: 10025")
     
     # 使用SSE传输方式启动服务器
     mcp.run(transport="sse")
