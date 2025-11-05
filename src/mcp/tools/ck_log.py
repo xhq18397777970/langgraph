@@ -76,8 +76,6 @@ def query_single_field_sum(params):
             error_info["status_code"] = e.response.status_code
         return error_info
 
-
-
 # 使用示例
 if __name__ == "__main__":
     # 示例1: 查询lbha业务，域数据源查询访问量
@@ -92,7 +90,7 @@ if __name__ == "__main__":
         "host" : ["erp.jd.com"],
 
         }}],
-    "interval": "20s",
+    "interval": "60s",
     "algorithm": {
         "algorithmName": "sum"
     }
