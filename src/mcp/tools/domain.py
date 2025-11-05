@@ -8,10 +8,8 @@ from langchain_core.tools import tool
 from typing import List, Dict
 # 创建MCP服务器实例
 mcp = FastMCP("Domain Info Service", port=10025)
-# mcp = FastMCP("Domain Info Service")
 
 
-# === 配置参数 ===
 DEFAULT_CONFIG = {
     'appCode': 'xhq',
     'erp': 'xiehanqi.jackson',
@@ -19,9 +17,7 @@ DEFAULT_CONFIG = {
     'api_url': 'http://api-np.jd.local/V1/Dns/domainsInfo'
 }
 
-
 #也可以使用@tool的方式声明工具，为函数起别名，LLM通过名字再找到函数，且工具调用结果直接返回，大语言模型不做思考总结 
-# @tool('devide_tool',return_direct=True)
 def generate_signature(erp: str, businessId: str, timestamp: str) -> str:
     """生成请求签名"""
     timeStr = time.strftime("%H%M%Y%m%d", time.localtime(int(timestamp)))
