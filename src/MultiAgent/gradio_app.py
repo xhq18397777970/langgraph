@@ -74,12 +74,12 @@ def create_gradio_interface():
         
         gr.Markdown(
             """
-            # 🤖 Director多Agent智能助手
+            # 🤖 运维Multi-Agent线上客服
             
             这是一个基于LangGraph构建的多Agent系统，可以帮助您：
-            - 🗺️ **旅游规划**：制定旅游路线和建议
-            - 😄 **讲笑话**：生成有趣的笑话内容
-            - 📝 **对对联**：创作精彩的对联
+            - 🗺️ **CK平台日志查询**：根据用户诉求生成检索SQL语句，得到检索结果
+            - 😄 **监控数据查询**：查询监控数据
+            - 📝 **NP平台数据检索**：检索域名相关内容
             - 💬 **其他问题**：处理其他类型的咨询
             
             请在下方输入您的问题，系统会自动识别并分配给合适的专业Agent处理。
@@ -98,7 +98,7 @@ def create_gradio_interface():
         # 输入框
         msg = gr.Textbox(
             label="请输入您的问题",
-            placeholder="例如：推荐一个北京旅游路线 / 讲个笑话 / 帮我对个对联",
+            placeholder="例如：帮我查询域名信息、查询CK平台日志数据",
             lines=2,
             max_lines=5
         )
@@ -111,9 +111,9 @@ def create_gradio_interface():
         # 示例问题
         gr.Examples(
             examples=[
-                "推荐一个三天的北京旅游路线",
-                "讲一个程序员的笑话",
-                "帮我对个对联，上联是：春风得意马蹄疾",
+                "帮我查询jd.local的域名状态",
+                "帮我查询graycluster-bind-check.jd.local域名的管理者",
+                "实时统计‘api.m.jd.com’域名，在最近20秒内的每秒请求量（QPS）和带宽消耗。",
                 "今天天气怎么样？",
                 "你能做什么？"
             ],
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     demo = create_gradio_interface()
     
     print("🚀 启动Gradio界面...")
-    print("📝 支持的功能：旅游规划、讲笑话、对对联、其他问题")
+    print("📝 支持的功能：域名检查、CK平台日志分析、监控数据查询、其他问题")
     print("🌐 访问地址：http://localhost:7860")
     
     demo.launch(

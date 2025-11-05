@@ -8,7 +8,7 @@ config = {
         }
     }
 input_data = {
-        "messages": [HumanMessage(content="今天天气如何")]
+        "messages": [HumanMessage(content="帮我查询jd.local域名的信息")]
     }
     
 print("开始执行多Agent流程...")

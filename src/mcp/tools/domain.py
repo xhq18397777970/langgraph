@@ -5,8 +5,11 @@ import requests
 import time
 import json
 from langchain_core.tools import tool
+from typing import List, Dict
 # 创建MCP服务器实例
 mcp = FastMCP("Domain Info Service", port=10025)
+# mcp = FastMCP("Domain Info Service")
+
 
 # === 配置参数 ===
 DEFAULT_CONFIG = {
@@ -15,6 +18,8 @@ DEFAULT_CONFIG = {
     'businessId': '6abe3998080d92d648d7ad461bd67f38',
     'api_url': 'http://api-np.jd.local/V1/Dns/domainsInfo'
 }
+
+
 #也可以使用@tool的方式声明工具，为函数起别名，LLM通过名字再找到函数，且工具调用结果直接返回，大语言模型不做思考总结 
 # @tool('devide_tool',return_direct=True)
 def generate_signature(erp: str, businessId: str, timestamp: str) -> str:
@@ -199,6 +204,119 @@ def get_status_description(status_code: int) -> str:
         0: "未知状态"
     }
     return status_descriptions.get(status_code, "未知状态码")
+
+
+@mcp.tool()
+def get_domain_instance_traffic(suName: str, instList: List[Dict], beginTime: str = None, endTime: str = None, erp: str = None, businessId: str = None) -> dict:
+    """
+    获取域名实例访问量统计数据（数据正常会有一分多钟的延时，偶尔会有长时间延时请合理使用数据）
+    
+    适用场景：
+    - 监控负载均衡集群的实例访问量
+    - 分析域名实例的流量分布
+    - 排查实例访问异常问题
+    
+    Args:
+        suName: 集群名，例如 'one.wise.lf'
+        instList: 实例信息列表，每个实例包含ip和port字段
+                  示例: [{"ip": "172.16.139.11", "port": "80"}, {"ip": "172.16.139.12", "port": "80"}]
+        beginTime: 开始时间，格式：'2019-04-03 00:00:00'。如果为空，获取最新3分钟内数据
+        endTime: 结束时间，格式：'2019-04-03 00:00:00'。时间跨度需小于5分钟
+        erp: 操作者的ERP账号，用于权限验证。如果不提供，使用系统默认值。
+        businessId: 业务标识符，用于区分不同的业务系统。如果不提供，使用系统默认值。
+        
+    Returns:
+        返回包含实例访问量统计数据的字典，包括：
+        - success: 请求是否成功
+        - data: 实例访问量数据，格式为 {"ip:port": "访问量"}，值为"-1"表示处理异常
+        - timestamp: 请求时间戳
+        - domains_count: 处理的实例数量
+    """
+    print(f"📊 获取域名实例访问量: {suName}")
+    print(f"📝 参数: suName={suName}, instList={instList}, beginTime={beginTime}, endTime={endTime}")
+    
+    try:
+        # 使用传入参数或默认配置
+        config = DEFAULT_CONFIG.copy()
+        if erp:
+            config['erp'] = erp
+        if businessId:
+            config['businessId'] = businessId
+        
+        # 生成时间戳和签名
+        timestamp = str(int(time.time()))
+        sign = generate_signature(config['erp'], config['businessId'], timestamp)
+        
+        # 构造请求头
+        headers = build_headers(config['appCode'], config['erp'], timestamp, sign)
+        
+        # 构造请求体
+        post_data = {
+            "suName": suName,
+            "instList": instList
+        }
+        
+        # 可选的时间参数
+        if beginTime:
+            post_data["beginTime"] = beginTime
+        if endTime:
+            post_data["endTime"] = endTime
+        
+        # 指定API路径
+        api_url = "http://api-np.jd.local/V1/Lb/countQuery"
+        
+        # 执行POST请求（json格式）
+        response = requests.post(api_url, headers=headers, json=post_data)
+        
+        if response.status_code == 200:
+            result = response.json()
+            
+            # 解析响应数据
+            if result.get('resStatus') == 200:
+                traffic_data = result.get('data', {})
+                
+                # 统计正常和异常的实例数量
+                normal_count = 0
+                error_count = 0
+                for key, value in traffic_data.items():
+                    if value == "-1":
+                        error_count += 1
+                    else:
+                        normal_count += 1
+                
+                return {
+                    "success": True,
+                    "data": {
+                        "traffic_stats": traffic_data,
+                        "summary": {
+                            "total_instances": len(traffic_data),
+                            "normal_instances": normal_count,
+                            "error_instances": error_count
+                        }
+                    },
+                    "timestamp": timestamp,
+                    "domains_count": len(instList),
+                    "message": "获取实例访问量成功"
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"API返回错误: {result.get('resMsg', '未知错误')}",
+                    "resStatus": result.get('resStatus'),
+                    "details": result
+                }
+        else:
+            return {
+                "success": False,
+                "error": f"请求失败，状态码: {response.status_code}",
+                "details": response.text
+            }
+            
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"执行异常: {str(e)}"
+        }
 
 if __name__ == "__main__":
     print("🚀 启动域名查询 MCP 服务...")

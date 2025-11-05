@@ -40,7 +40,3 @@ async def main():
         # stream_mode="messages"
     ):
         print(chunk)
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())

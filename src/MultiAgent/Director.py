@@ -10,7 +10,12 @@ import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config.model_config import get_deepseek_model
-
+from langchain_mcp_adapters.client import MultiServerMCPClient
+import asyncio
+from langgraph.prebuilt  import create_react_agent
+from langchain_core.tools import StructuredTool
+from pydantic import BaseModel
+from typing import Any, Dict
 # 定义日志函数
 def get_stream_writer():
     """简单的流式输出写入器"""
@@ -21,10 +26,51 @@ def get_stream_writer():
             print(f"🔔 {data}")
     return writer
 
+def create_sync_tool_wrapper(async_tool):
+    """创建同步工具包装器，将异步 MCP 工具转换为同步工具"""
+    
+    def sync_func(**kwargs):
+        """同步包装函数，使用 asyncio.run 调用异步工具"""
+        try:
+            # 调用异步工具的 coroutine 函数
+            result = asyncio.run(async_tool.coroutine(**kwargs))
+            return result
+        except Exception as e:
+            print(f"🔍 [DEBUG] 同步包装器执行异常: {e}")
+            raise e
+    
+    # 创建新的同步 StructuredTool
+    sync_tool = StructuredTool.from_function(
+        func=sync_func,
+        name=async_tool.name,
+        description=async_tool.description,
+        args_schema=async_tool.args_schema,
+        return_direct=getattr(async_tool, 'return_direct', False)
+    )
+    
+    print(f"🔍 [DEBUG] 创建同步工具包装器: {async_tool.name}")
+    return sync_tool
+
+def convert_async_tools_to_sync(async_tools):
+    """将异步工具列表转换为同步工具列表"""
+    sync_tools = []
+    for tool in async_tools:
+        if hasattr(tool, 'coroutine') and tool.coroutine is not None:
+            # 这是一个异步工具，需要包装
+            sync_tool = create_sync_tool_wrapper(tool)
+            sync_tools.append(sync_tool)
+            print(f"🔍 [DEBUG] 转换异步工具: {tool.name} -> 同步工具")
+        else:
+            # 这已经是同步工具，直接使用
+            sync_tools.append(tool)
+            print(f"🔍 [DEBUG] 保持同步工具: {tool.name}")
+    
+    return sync_tools
+
 load_dotenv()
 
 # 修正：nodes 应该与模型返回的类型一致
-nodes = ["travel", "joke", "couplet", "other"]
+nodes = ["domain", "joke", "chinese", "other"]
 llm = get_deepseek_model()
 
 #这里的 add 操作符意味着：
@@ -35,15 +81,14 @@ class State(TypedDict):
     type: str
 
 def supervisor_node(state: State):
-    print(">>> supervisor_node")
     writer = get_stream_writer()
-    writer({"node": "supervisor_node"})
+    writer({">>> supervisor_node"})
     
     prompt = """
         你是一个专业的客服助手，负责对用户的问题进行分类，并将任务分给其他Agent执行。
-        如果用户的问题是和旅游路线规划相关的，那就返回travel。
+        如果用户的问题是和域名相关的，那就返回domain。
         如果用户的问题是希望讲一个笑话，那就返回joke。
-        如果用户的问题是希望对一个对联，那就返回couplet。
+        如果用户的问题是希望进行中文的句子分析，那就返回chinese。
         如果是其他的问题，返回other。
         注意：只返回上述四个单词中的一个，不要返回任何其他的内容。
         """
@@ -62,7 +107,7 @@ def supervisor_node(state: State):
     ]
     
     # 如果已有type属性且不是第一次执行，使用大模型判断是否完成
-    if "type" in state and state["type"] in ["travel", "joke", "couplet", "other"]:
+    if "type" in state and state["type"] in ["domain", "joke", "chinese", "other"]:
         # 使用大模型判断任务是否完成
         completion_prompt = f"""
         请判断当前对话是否已经完成用户的任务需求。
@@ -106,10 +151,10 @@ def supervisor_node(state: State):
             {[msg.content for msg in state['messages']]}
             
             当前已完成的任务：{state['type']}
-            可用节点：travel, joke, couplet, other
+            可用节点：domain, joke, chinese, other
             
             请分析用户还有哪些任务没有完成，选择最合适的下一个节点。
-            只返回节点名称（travel/joke/couplet/other）
+            只返回节点名称（domain/joke/chinese/other）
             """
             
             next_step_messages = [
@@ -119,14 +164,30 @@ def supervisor_node(state: State):
             next_step_response = llm.invoke(next_step_messages)
             next_node = next_step_response.content.strip().lower()
             
-            #打印信息调试
+            # 打印信息调试
             writer({"supervisor_step": f"大模型建议的下一个节点: {next_node}"})
+            
             # 确保返回的节点在预定义节点中
             if next_node not in nodes:
-                next_node = state["type"]  # 默认继续当前任务
+                # 如果建议的节点不在预定义节点中，重新分析用户原始请求
+                original_request = state['messages'][0].content if state['messages'] else user_content
+                writer({"supervisor_step": f"重新分析原始请求: {original_request}"})
+                
+                # 重新分类原始请求
+                reclassify_messages = [
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": original_request}
+                ]
+                reclassify_response = llm.invoke(reclassify_messages)
+                next_node = reclassify_response.content.strip().lower()
+                writer({"supervisor_step": f"重新分类结果: {next_node}"})
+            
+            # 最终验证节点有效性
+            if next_node not in nodes:
+                next_node = "other"  # 默认使用 other
             
             writer({"supervisor_step": f"继续执行: {next_node}"})
-            return {"type": next_node}
+            return {"type": next_node}  # 这里应该返回节点名称，不是 END
     
     # 首次执行，进行任务分类
     response = llm.invoke(messages)
@@ -143,18 +204,103 @@ def supervisor_node(state: State):
     else:
         print(f"⚠️  类型 '{typeRes}' 不在预定义节点中，使用 'other'")
         return {"type": "other"}
-def travel_node(state: State):
-    print(">>> travel_node")
+def domain_node(state: State):
+    print(">>> domain_node")
     writer = get_stream_writer()
-    writer({"node": "travel_node"})
-    # 实际应该调用旅游相关的API或处理逻辑
-    travel_response = "为您推荐湖南旅游路线：长沙->张家界->凤凰古城，全程5天4晚。"
-    return {"messages": [AIMessage(content=travel_response)], "type": "travel"}
+    writer({"node": "domain_node"})
+    
+    # 修正：正确构建消息格式
+    if state["messages"] and hasattr(state["messages"][-1], 'content'):
+        user_input = state["messages"][-1].content
+    else:
+        user_input = str(state["messages"])
+    
+    system_prompt = """
+        你是一个专业的域名领域专家，根据提供的工具完成域名相关的功能。
+        """
+        
+    prompts = [
+        {"role": "system", "content":system_prompt},
+        {"role":"user","content":user_input}
+    ]
+    
+    try:
+        #mcp客户端，用于连接mcp服务
+        print("🔍 [DEBUG] 创建 MCP 客户端...")
+        client = MultiServerMCPClient(
+            {
+                "domain-info-service": {
+                    "url": "http://127.0.0.1:10025/sse",
+                    "transport": "sse",
+                }
+            }
+        )
+        
+        #langgraph整个图是同步的，需要将异步方法转为同步的实现
+        print("🔍 [DEBUG] 获取 MCP 工具...")
+        async_tools = asyncio.run(client.get_tools())
+        
+        # 添加诊断日志
+        print(f"🔍 [DEBUG] 获取到 {len(async_tools)} 个异步工具")
+        for i, tool in enumerate(async_tools):
+            print(f"🔍 [DEBUG] 异步工具 {i}: {type(tool).__name__}")
+            print(f"🔍 [DEBUG] 工具名称: {getattr(tool, 'name', 'Unknown')}")
+            if hasattr(tool, 'coroutine'):
+                print(f"🔍 [DEBUG] 工具有 coroutine 属性: {tool.coroutine}")
+            if hasattr(tool, 'func'):
+                print(f"🔍 [DEBUG] 工具 func 类型: {type(tool.func)}")
+        
+        # 将异步工具转换为同步工具
+        print("🔍 [DEBUG] 转换异步工具为同步工具...")
+        sync_tools = convert_async_tools_to_sync(async_tools)
+        
+        print(f"🔍 [DEBUG] 转换完成，得到 {len(sync_tools)} 个同步工具")
+        for i, tool in enumerate(sync_tools):
+            print(f"🔍 [DEBUG] 同步工具 {i}: {type(tool).__name__}")
+            print(f"🔍 [DEBUG] 工具名称: {getattr(tool, 'name', 'Unknown')}")
+            if hasattr(tool, 'func') and tool.func is not None:
+                print(f"🔍 [DEBUG] 工具有有效的 func: {type(tool.func)}")
+            else:
+                print(f"🔍 [DEBUG] 工具 func 为空或无效")
+        
+        print("🔍 [DEBUG] 创建 React Agent...")
+        agent = create_react_agent(
+            model=llm,
+            tools=sync_tools,
+        )
+        
+        writer({"domain_step": "调用域名查询工具..."})
+        
+        print("🔍 [DEBUG] 调用 Agent...")
+        # 修正：使用正确的输入格式
+        response = agent.invoke({"messages":prompts})
+        
+        # 修正：正确提取响应内容
+        if response and "messages" in response and response["messages"]:
+            last_message = response["messages"][-1]
+            if hasattr(last_message, 'content'):
+                result_content = last_message.content
+            else:
+                result_content = str(last_message)
+        else:
+            result_content = "域名查询完成"
+            
+        writer({"domain_result": result_content})
+        
+        # 修正：返回正确的消息格式
+        return {"messages": [AIMessage(content=result_content)], "type": "domain"}
+        
+    except Exception as e:
+        print(f"🔍 [DEBUG] 异常详情: {type(e).__name__}: {str(e)}")
+        import traceback
+        print(f"🔍 [DEBUG] 异常堆栈: {traceback.format_exc()}")
+        writer({"error": f"域名查询失败: {e}"})
+        error_msg = f"域名查询过程中出现错误: {str(e)}"
+        return {"messages": [AIMessage(content=error_msg)], "type": "domain"}
 
 def joke_node(state: State):
-    print(">>> joke_node")
-    writer = get_stream_writer()
-    writer({"node": "joke_node"})
+
+    writer({">>> joke_node"})
     
     # 更详细的提示词
     system_prompt = """你是一个专业的喜剧编剧和笑话生成器。请根据用户的要求创作一个精彩的笑话。
@@ -167,7 +313,9 @@ def joke_node(state: State):
     5. 适度创新：可以结合时事热点或流行文化
     
     如果用户指定了笑话类型（如冷笑话、相声段子、谐音梗等），请按照要求创作。
-    如果用户提到了具体的喜剧演员风格（如郭德纲、周立波等），请模仿相应的风格。"""
+    如果用户提到了具体的喜剧演员风格（如郭德纲、周立波等），请模仿相应的风格。
+    特别注意：除了生成笑话，不做其他任何推理任务！输入是要求，输出是笑话！
+    """
     
     # 获取用户输入
     #state["messages"] 存储了整个对话历史
@@ -204,21 +352,22 @@ def joke_node(state: State):
     
     #拿到大模型思考结果后，更新state状态
     #必须要HumanMessage方式返回，不可以直接返回字符串
-    #langchain中有不同消息类型：
+    #langchain中有不同消息类型： 
     return {"messages": [AIMessage(content=joke_content)], "type": "joke"}
 
-def couplet_node(state: State):
-    print(">>> couplet_node")
+def chinese_node(state: State):
+    print(">>> analyse_node")
     writer = get_stream_writer()
-    writer({"node": "couplet_node"})
+    writer({"node": "chinese_node"})
     # 实际应该调用对联生成API
     
     system_prompt="""
-    你是一个专业的对联生成器。请根据用户的要求创作一个精彩的对联
+    你是一个专业的语言大师，用于分析中文句子成分，负责中文的语义分析，输出所有的名词、动词、形容词、副词。
+    特别注意：除此之外，不做任何其他的推理工作！
     """
     if state["messages"] and hasattr(state["messages"][-1], 'content'):
         user_input = state["messages"][-1].content
-        user_prompt = f"用户请求：{user_input}\n\n请根据以上要求创作一个精彩的对联。"
+        user_prompt = f"用户请求：{user_input}\n\n请根据以上要求分析中文句子成分。"
     else:
         user_prompt = "请创作一个有趣的对联，主题不限。"
     
@@ -227,29 +376,70 @@ def couplet_node(state: State):
         {"role": "user", "content": user_prompt}
     ]
     
-    writer({"joke_generation": "大模型正在创作对联..."})
+    writer({"chinese_generation": "大模型正在分析句子语意"})
     
     try:
         response = llm.invoke(messages)
-        couplet_content = response.content.strip()
+        chinese_content = response.content.strip()
         
         # 确保对联内容不为空
-        if not couplet_content:
-            couplet_content = "默认对联"
+        if not chinese_content:
+            chinese_content = "默认对联"
             
-        writer({"generated_joke": couplet_content})
+        writer({"generated_joke": chinese_content})
         
     except Exception as e:
         writer({"error": f"对联生成失败: {e}"})
         # 备用笑话
-        couplet_content = "准备好的对联"
+        chinese_content = "准备好的对联"
     
     #拿到大模型思考结果后，更新state状态
     #必须要HumanMessage方式返回，不可以直接返回字符串
     #langchain中有不同消息类型：
-    return {"messages": [AIMessage(content=couplet_content)], "type": "couplet"}
+    return {"messages": [AIMessage(content=chinese_content)], "type": "chinese"}
 
-
+def deeplog_node(state:State):
+    print(">>> analyse_node")
+    writer = get_stream_writer()
+    writer({"node": "deeplog_node"})
+    # 实际应该调用对联生成API
+    
+    system_prompt="""
+    你是一个专业的语言大师，用于分析中文句子成分，负责中文的语义分析，输出所有的名词、动词、形容词、副词。
+    特别注意：除此之外，不做任何其他的推理工作！
+    """
+    if state["messages"] and hasattr(state["messages"][-1], 'content'):
+        user_input = state["messages"][-1].content
+        user_prompt = f"用户请求：{user_input}\n\n请根据以上要求分析中文句子成分。"
+    else:
+        user_prompt = "请创作一个有趣的对联，主题不限。"
+    
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt}
+    ]
+    
+    writer({"deeplog_generation": "大模型正在分析句子语意"})
+    
+    try:
+        response = llm.invoke(messages)
+        deeplog_content = response.content.strip()
+        
+        # 确保对联内容不为空
+        if not deeplog_content:
+            deeplog_content = "默认对联"
+            
+        writer({"generated_joke": deeplog_content})
+        
+    except Exception as e:
+        writer({"error": f"对联生成失败: {e}"})
+        # 备用笑话
+        chinese_content = "准备好的对联"
+    
+    #拿到大模型思考结果后，更新state状态
+    #必须要HumanMessage方式返回，不可以直接返回字符串
+    #langchain中有不同消息类型：
+    return {"messages": [AIMessage(content=chinese_content)], "type": "chinese"}
 def other_node(state: State):
     print(">>> other_node")
     writer = get_stream_writer()
@@ -260,12 +450,12 @@ def other_node(state: State):
 def routing_func(state: State):
     print(f"路由函数接收到类型: {state['type']}")
     
-    if state["type"] == "travel":
-        return "travel_node"
+    if state["type"] == "domain":
+        return "domain_node"
     elif state["type"] == "joke":
         return "joke_node"
-    elif state["type"] == "couplet":
-        return "couplet_node"
+    elif state["type"] == "chinese":
+        return "chinese_node"
     elif state["type"] == "other":
         return "other_node"
     elif state["type"] == END:
@@ -277,9 +467,9 @@ def routing_func(state: State):
 # 构建图
 builder = StateGraph(State)
 builder.add_node("supervisor_node", supervisor_node)
-builder.add_node("travel_node", travel_node)
+builder.add_node("domain_node", domain_node)
 builder.add_node("joke_node", joke_node)
-builder.add_node("couplet_node", couplet_node)
+builder.add_node("chinese_node", chinese_node)
 builder.add_node("other_node", other_node)
 
 # 设置流程
@@ -290,48 +480,20 @@ builder.add_conditional_edges(
     "supervisor_node",
     routing_func,
     {
-        "travel_node": "travel_node",
+        "domain_node": "domain_node",
         "joke_node": "joke_node", 
-        "couplet_node": "couplet_node",
+        "chinese_node": "chinese_node",
         "other_node": "other_node",
         END: END
     }
 )
 
 # 各个处理节点完成后回到 supervisor_node 进行结果确认
-builder.add_edge("travel_node", "supervisor_node")
+builder.add_edge("domain_node", "supervisor_node")
 builder.add_edge("joke_node", "supervisor_node") 
-builder.add_edge("couplet_node", "supervisor_node")
+builder.add_edge("chinese_node", "supervisor_node")
 builder.add_edge("other_node", "supervisor_node")
 
 checkpointer = MemorySaver()
 graph = builder.compile(checkpointer=checkpointer)
 
-if __name__ == "__main__":
-    config = {"configurable": {"thread_id": "1"}}
-    
-    # 修正：输入应该是 HumanMessage 对象列表
-    input_data = {
-        "messages": [HumanMessage(content="今天天气如何")]
-    }
-    
-    print("开始执行多Agent流程...")
-    # try:
-    #     for chunk in graph.stream(
-    #         input_data,
-    #         config=config,
-    #         stream_mode="values"
-    #     ):
-    #         node_name = list(chunk.keys())[0] if chunk else "unknown"
-    #         print(f"=== 节点 {node_name} 输出 ===")
-    #         print(chunk)
-    #         print("=" * 50)
-    # except Exception as e:
-    #     print(f"执行出错: {e}")
-    #     import traceback
-    #     traceback.print_exc()
-    res = graph.invoke({"message":["说个笑话"]}
-                       ,config
-                       ,stream_mode="values")
-    print(res["messages"][-1].content)
-    
