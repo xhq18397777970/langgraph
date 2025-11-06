@@ -77,7 +77,7 @@ def query_log_info(
         
         interval: 必填,时序间隔,为空时取该时间段的总体聚合值,粒度有(10s、5m、1s、1h四种单位,例如:1s、2s、1m、4h)时间范围越大填的粒度越大
     
-        这只是案例:
+        这只是案例，需要根据用户的问题进行替换
         1、帮我查询lbha业务下,域名等于jd.com的请求带宽,时间范围为2025年11月05日0点0分0秒到2025年11月05日10点01分00秒,时间粒度为10s
         请求参数:
         bizName="lbha"
@@ -133,24 +133,3 @@ def query_log_info(
 if __name__ == "__main__":
     # 运行MCP服务器
     mcp.run(transport="sse")
-# 使用示例
-if __name__ == "__main__":
-
-    result = query_single_field_sum(
-        
-        bizName="lbha",
-        
-        multiresource=[],
-        
-        timeRange={
-            "start": "2025-11-05 10:00:00",
-            "end": "2025-11-05 10:01:00"
-        },
-        match=[{"eq" : {
-            "host" : ["erp.jd.com"],}}]
-        ,
-        interval="60s"
-    )
-    # print(format_response_data(result))
-
-    print(result)
