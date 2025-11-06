@@ -5,6 +5,7 @@ from langchain_core.messages import HumanMessage
 import os
 import sys
 from datetime import datetime, timedelta
+import json
 
 # 添加路径以导入模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -62,7 +63,7 @@ def create_gradio_interface():
         theme=gr.themes.Soft(),
         css="""
         .gradio-container {
-            max-width: 800px !important;
+            max-width: 1200px !important;
             margin: auto !important;
         }
         .chat-message {
@@ -91,7 +92,7 @@ def create_gradio_interface():
                 # 聊天界面
         chatbot = gr.Chatbot(
             label="对话记录",
-            height=400,
+            height=500,
             show_label=True,
             container=True,
             bubble_full_width=False
@@ -249,47 +250,47 @@ def create_gradio_interface():
         # 绑定时间选择事件
         # 相对时间
         last_5min.click(
-            fn=lambda: on_relative_time_click("最近5分钟", 5),
+            fn=lambda: on_relative_time_click("5分钟", 5),
             outputs=msg
         )
         
         last_15min.click(
-            fn=lambda: on_relative_time_click("最近15分钟", 15),
+            fn=lambda: on_relative_time_click("15分钟", 15),
             outputs=msg
         )
         
         last_30min.click(
-            fn=lambda: on_relative_time_click("最近30分钟", 30),
+            fn=lambda: on_relative_time_click("30分钟", 30),
             outputs=msg
         )
         
         last_1hour.click(
-            fn=lambda: on_relative_time_click("最近1小时", 60),
+            fn=lambda: on_relative_time_click("1小时", 60),
             outputs=msg
         )
         
         last_3hours.click(
-            fn=lambda: on_relative_time_click("最近3小时", 180),
+            fn=lambda: on_relative_time_click("3小时", 180),
             outputs=msg
         )
         
         last_6hours.click(
-            fn=lambda: on_relative_time_click("最近6小时", 360),
+            fn=lambda: on_relative_time_click("6小时", 360),
             outputs=msg
         )
         
         last_12hours.click(
-            fn=lambda: on_relative_time_click("最近12小时", 720),
+            fn=lambda: on_relative_time_click("12小时", 720),
             outputs=msg
         )
         
         last_24hours.click(
-            fn=lambda: on_relative_time_click("最近24小时", 1440),
+            fn=lambda: on_relative_time_click("24小时", 1440),
             outputs=msg
         )
         
         last_7days.click(
-            fn=lambda: on_relative_time_click("最近7天", 10080),
+            fn=lambda: on_relative_time_click("7天", 10080),
             outputs=msg
         )
         

@@ -8,9 +8,10 @@ from fastmcp import FastMCP
 
 # 配置参数
 CONFIG = {
+    #deeplog-ck 接口鉴权参数
     'appCode': 'JC_PIDLB',
     'token': '9b78f9ab773774f5b2c4b627ff007152',
-    'api_url': 'http://deeplog-lb-api.jd.com/',
+    'api_url': 'http://deeplog-ck.jd.com/rest/api/search',
 }
 
 def get_np_auth_headers(app_code: str, token: str) -> dict:
@@ -32,11 +33,13 @@ def get_np_auth_headers(app_code: str, token: str) -> dict:
 
 
 def query_log_info(
-    multiresource: List[str],
-    timeRange: Dict[str, str],
-    match: List[Dict],
-    interval: str,
-    bizName: str = "lbha"
+    params: dict,
+    # multiresource: List[str],
+    # timeRange: Dict[str, str],
+    # match: List[Dict],
+    # interval: str,
+    #  algorithm: Dict[str, Any],
+    # bizName: str = "lbha"
 ) -> dict:
     """
     查询deeplog平台的日志数据:域名/集群/url/服务器VIP/运营商的指标,包括:bin请求带宽、bout响应带宽、count（QPS/访问量）
@@ -94,25 +97,34 @@ def query_log_info(
         dict: 日志查询结果
     """
     
-    params = {
-        "bizName": bizName,
-        "multiresource": multiresource,
-        "timeRange": timeRange,
-        "match": match,
-        "interval": interval,
-        "algorithm": {
-            "algorithmName": "sum"
-        }
-    }
+    # params = {
+    #     "bizName": bizName,
+    #     "resource": multiresource,
+    #     "timeRange": timeRange,
+    #     "match": match,
+    #     "interval": interval,
+    #     "algorithm":{
+    #         "algorithmName": "group",
+    #         "groupBy": ["srv_ip"],
+    #         # "size":3
+    #     }
+    # }
     
     headers = get_np_auth_headers(CONFIG['appCode'], CONFIG['token'])
-    url = f"{CONFIG['api_url']}v1/search"
+    url = CONFIG['api_url']
     
     try:
         response = requests.post(url, headers=headers, json=params, timeout=30)
         print(f"响应状态码: {response.status_code}")
         
         raw_data = response.json()
+        
+        if raw_data["code"]==0:
+            return {
+                "info":"接口调用成功，并返回了结果",
+                "result":raw_data
+            }
+        
         return raw_data
         
     except requests.exceptions.RequestException as e:
@@ -126,25 +138,31 @@ def query_log_info(
             error_info["status_code"] = e.response.status_code
         return error_info
 
-
 # 使用示例
 if __name__ == "__main__":
 
     result = query_log_info(
-        
-        bizName="lbha",
-        
-        multiresource=['srv_ip','count'],
-        
-        timeRange={
-            "start": "2025-11-05 10:00:00",
-            "end": "2025-11-05 10:01:00"
-        },
-        match=[{"eq" : {
-            "host" : ["api.m.jd.com"],
-            "srv-ip": ["172.28.15.52"]}}]
-        ,
-        interval="10s"
+{
+    "size": 20,
+    "bizName": "lbha",
+    "resource": ["count"],
+    "timeRange": {
+        "start": "2025-11-06 19:00:00",
+        "end": "2025-11-06 19:05:00"
+    },
+    "match": [{
+        "eq": {
+            "http_code": ["200"],
+            "host":["jd.com"]
+
+        }
+    }],
+    "algorithm": {
+        "algorithmName": "group",
+        "groupBy": ["host","url"],
+        "size":3
+    }
+}
     )
     # print(format_response_data(result))
 
