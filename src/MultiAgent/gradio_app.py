@@ -4,6 +4,7 @@ from Director import graph
 from langchain_core.messages import HumanMessage
 import os
 import sys
+from datetime import datetime, timedelta
 
 # 添加路径以导入模块
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -69,24 +70,25 @@ def create_gradio_interface():
             margin: 5px 0;
             border-radius: 10px;
         }
+        .time-selector-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+        }
+        .time-button {
+            margin: 2px;
+        }
         """
     ) as demo:
         
         gr.Markdown(
             """
-            # 🤖 运维Multi-Agent线上客服
-            
-            这是一个基于LangGraph构建的多Agent系统，可以帮助您：
-            - 🗺️ **CK平台日志查询**：根据用户诉求生成检索SQL语句，得到检索结果
-            - 😄 **监控数据查询**：查询监控数据
-            - 📝 **NP平台数据检索**：检索域名相关内容
-            - 💬 **其他问题**：处理其他类型的咨询
-            
-            请在下方输入您的问题，系统会自动识别并分配给合适的专业Agent处理。
+            # 🤖 Multi-Agent运维线上客服
             """
         )
-        
-        # 聊天界面
+                # 聊天界面
         chatbot = gr.Chatbot(
             label="对话记录",
             height=400,
@@ -107,15 +109,52 @@ def create_gradio_interface():
         with gr.Row():
             submit_btn = gr.Button("发送", variant="primary", scale=2)
             clear_btn = gr.Button("清空对话", variant="secondary", scale=1)
+            
+            
+        # 时间选择卡片
+        with gr.Accordion("🕒 快速时间选择", open=False):
+            with gr.Row():
+                with gr.Column(scale=1):
+                    gr.Markdown("**相对时间**")
+                    
+                    with gr.Row():
+                        last_5min = gr.Button("最近5分钟", size="sm",min_width=60, elem_classes="time-button")
+                        last_15min = gr.Button("最近15分钟", size="sm",min_width=60, elem_classes="time-button")
+                        last_30min = gr.Button("最近30分钟", size="sm", min_width=60,elem_classes="time-button")
+                    
+                    with gr.Row():
+                        last_1hour = gr.Button("最近1小时", size="sm",min_width=60, elem_classes="time-button")
+                        last_3hours = gr.Button("最近3小时", size="sm",min_width=60, elem_classes="time-button")
+                        last_6hours = gr.Button("最近6小时", size="sm",min_width=60, elem_classes="time-button")
+                    
+                    with gr.Row():
+                        last_12hours = gr.Button("最近12小时", size="sm", min_width=60,elem_classes="time-button")
+                        last_24hours = gr.Button("最近24小时", size="sm",min_width=60, elem_classes="time-button")
+                        last_7days = gr.Button("最近7天", size="sm",min_width=60, elem_classes="time-button")
+                
+                with gr.Column(scale=1):
+                    gr.Markdown("**今日时间**")
+                    
+                    with gr.Row():
+                        today_morning = gr.Button("今天上午 (08:00-12:00)", size="sm", elem_classes="time-button")
+                        today_afternoon = gr.Button("今天下午 (12:00-18:00)", size="sm", elem_classes="time-button")
+                    
+                    with gr.Row():
+                        today_evening = gr.Button("今天晚上 (18:00-22:00)", size="sm", elem_classes="time-button")
+                        today_night = gr.Button("今天夜间 (22:00-02:00)", size="sm", elem_classes="time-button")
+                    
+                    with gr.Row():
+                        today_all = gr.Button("今天全天", size="sm", elem_classes="time-button")
+                        today_working = gr.Button("工作时间 (09:00-18:00)", size="sm", elem_classes="time-button")
+                
+
         
         # 示例问题
         gr.Examples(
             examples=[
-                "帮我查询jd.local的域名状态",
-                "帮我查询graycluster-bind-check.jd.local域名的管理者",
-                "实时统计‘api.m.jd.com’域名，在最近20秒内的每秒请求量（QPS）和带宽消耗。",
-                "今天天气怎么样？",
-                "你能做什么？"
+                "查询jd.com域名注册状态、详细信息",
+                "查询域名QPS，带宽","查询LB服务器QPS","状态码404占比","404访问最多地址",
+                "后端实例访问统计"
             ],
             inputs=msg,
             label="示例问题"
@@ -157,7 +196,135 @@ def create_gradio_interface():
             """清空对话历史"""
             return None, []
         
-        # 绑定事件
+        # 时间选择功能函数
+        def get_current_time():
+            """获取当前时间"""
+            return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        def calculate_time_range(minutes_ago):
+            """计算相对时间范围"""
+            end_time = datetime.now()
+            start_time = end_time - timedelta(minutes=minutes_ago)
+            return start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        def get_today_time_range(start_hour, end_hour):
+            """获取今天指定时间段"""
+            today = datetime.now().date()
+            start_time = datetime(today.year, today.month, today.day, start_hour, 0, 0)
+            end_time = datetime(today.year, today.month, today.day, end_hour, 0, 0)
+            
+            # 如果结束时间小于开始时间，说明跨天了
+            if end_hour < start_hour:
+                end_time += timedelta(days=1)
+                
+            return start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        def format_time_message(start_time, end_time, description=None):
+            """格式化时间选择消息"""
+            if description:
+                return f"时间段：{description} ({start_time} 到 {end_time})"
+            else:
+                return f"时间段：{start_time} 到 {end_time}"
+        
+        def append_time_to_input(current_input, start_time, end_time, description=None):
+            """将时间信息添加到输入框"""
+            time_message = format_time_message(start_time, end_time, description)
+            
+            if current_input:
+                # 如果已有内容，换行添加时间信息
+                return f"{current_input}\n{time_message}"
+            else:
+                return time_message
+        
+        # 相对时间按钮点击事件
+        def on_relative_time_click(btn_label, minutes):
+            start, end = calculate_time_range(minutes)
+            return append_time_to_input("", start, end, btn_label)
+        
+        # 今日时间按钮点击事件
+        def on_today_time_click(btn_label, start_hour, end_hour):
+            start, end = get_today_time_range(start_hour, end_hour)
+            return append_time_to_input("", start, end, btn_label)
+        
+        # 绑定时间选择事件
+        # 相对时间
+        last_5min.click(
+            fn=lambda: on_relative_time_click("最近5分钟", 5),
+            outputs=msg
+        )
+        
+        last_15min.click(
+            fn=lambda: on_relative_time_click("最近15分钟", 15),
+            outputs=msg
+        )
+        
+        last_30min.click(
+            fn=lambda: on_relative_time_click("最近30分钟", 30),
+            outputs=msg
+        )
+        
+        last_1hour.click(
+            fn=lambda: on_relative_time_click("最近1小时", 60),
+            outputs=msg
+        )
+        
+        last_3hours.click(
+            fn=lambda: on_relative_time_click("最近3小时", 180),
+            outputs=msg
+        )
+        
+        last_6hours.click(
+            fn=lambda: on_relative_time_click("最近6小时", 360),
+            outputs=msg
+        )
+        
+        last_12hours.click(
+            fn=lambda: on_relative_time_click("最近12小时", 720),
+            outputs=msg
+        )
+        
+        last_24hours.click(
+            fn=lambda: on_relative_time_click("最近24小时", 1440),
+            outputs=msg
+        )
+        
+        last_7days.click(
+            fn=lambda: on_relative_time_click("最近7天", 10080),
+            outputs=msg
+        )
+        
+        # 今日时间
+        today_morning.click(
+            fn=lambda: on_today_time_click("今天上午", 8, 12),
+            outputs=msg
+        )
+        
+        today_afternoon.click(
+            fn=lambda: on_today_time_click("今天下午", 12, 18),
+            outputs=msg
+        )
+        
+        today_evening.click(
+            fn=lambda: on_today_time_click("今天晚上", 18, 22),
+            outputs=msg
+        )
+        
+        today_night.click(
+            fn=lambda: on_today_time_click("今天夜间", 22, 2),
+            outputs=msg
+        )
+        
+        today_all.click(
+            fn=lambda: on_today_time_click("今天全天", 0, 23),
+            outputs=msg
+        )
+        
+        today_working.click(
+            fn=lambda: on_today_time_click("工作时间", 9, 18),
+            outputs=msg
+        )
+        
+        # 绑定聊天事件
         submit_btn.click(
             respond,
             inputs=[msg, chatbot],
@@ -191,6 +358,7 @@ if __name__ == "__main__":
     
     print("🚀 启动Gradio界面...")
     print("📝 支持的功能：域名检查、CK平台日志分析、监控数据查询、其他问题")
+    print("🕒 新增功能：快速时间选择器")
     print("🌐 访问地址：http://localhost:7860")
     
     demo.launch(

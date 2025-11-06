@@ -6,9 +6,6 @@ import hashlib
 from typing import List, Dict, Optional, Any, Union
 from fastmcp import FastMCP
 
-# 创建MCP服务器实例
-mcp = FastMCP("deep_log 日志数据查询服务", port=10025)
-
 # 配置参数
 CONFIG = {
     'appCode': 'JC_PIDLB',
@@ -33,7 +30,7 @@ def get_np_auth_headers(app_code: str, token: str) -> dict:
     }
     return headers
 
-@mcp.tool
+
 def query_log_info(
     multiresource: List[str],
     timeRange: Dict[str, str],
@@ -77,7 +74,7 @@ def query_log_info(
         
         interval: 必填,时序间隔,为空时取该时间段的总体聚合值,粒度有(10s、5m、1s、1h四种单位,例如:1s、2s、1m、4h)时间范围越大填的粒度越大
     
-        这只是案例，需要根据用户的问题进行替换
+        这只是案例:
         1、帮我查询lbha业务下,域名等于jd.com的请求带宽,时间范围为2025年11月05日0点0分0秒到2025年11月05日10点01分00秒,时间粒度为10s
         请求参数:
         bizName="lbha"
@@ -129,7 +126,26 @@ def query_log_info(
             error_info["status_code"] = e.response.status_code
         return error_info
 
+
 # 使用示例
 if __name__ == "__main__":
-    # 运行MCP服务器
-    mcp.run(transport="sse")
+
+    result = query_log_info(
+        
+        bizName="lbha",
+        
+        multiresource=['srv_ip','count'],
+        
+        timeRange={
+            "start": "2025-11-05 10:00:00",
+            "end": "2025-11-05 10:01:00"
+        },
+        match=[{"eq" : {
+            "host" : ["api.m.jd.com"],
+            "srv-ip": ["172.28.15.52"]}}]
+        ,
+        interval="10s"
+    )
+    # print(format_response_data(result))
+
+    print(result)

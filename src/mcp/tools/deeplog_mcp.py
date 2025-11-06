@@ -42,13 +42,17 @@ def query_log_info(
     bizName: str = "lbha"
 ) -> dict:
     """
-    查询deeplog平台的日志数据:域名/集群/url/服务器VIP/运营商的指标,包括:bin请求带宽、bout响应带宽、count（QPS/访问量）
+    查询Deeplog平台的日志数据:
+    查询域名QPS、带宽、查询LB服务器的QPS、状态码占比、404访问最多地址、后端实例访问统计、客户端QPS、客户端Top10
+    
     
     Args:
-        bizName: 必填,业务/数据源名称,选填（"lbha","nginx","nginx4"）默认为"lbha"
-        multiresource: 必填的多资源字符串列表（count求和表示访问量、bin字段求和表示请求带宽、bout表示响应带宽）
-        timeRange: 必填,起止时间,例如从2023年1月1日0点0分0秒到2023年1月2日10点10分10秒{"start": "2023-01-01 00:00:00", "end": "2023-01-02 10:00:00"}
-        match: 必填的匹配条件对象列表。match块中定义了查询过滤条件,模块中参数均为选填项,字段间关系均为AND,对OR的关系暂时不做处理
+        bizName: 必填,业务/数据源名称,选填（"lbha","nginx","nginx4"）默认"lbha"
+        multiresource: 必填，字符串列表，可填（count求和表示访问量、bin字段求和表示请求带宽、bout表示响应带宽）
+        timeRange: 必填,起止时间（例如从2023年1月1日0点0分0秒到2023年1月2日10点10分10秒{"start": "2023-01-01 00:00:00", "end": "2023-01-02 10:00:00"}）
+        interval: 必填,时序间隔,为空时取该时间段的总体聚合值,粒度有(10s、5m、1s、1h四种单位,例如:1s、2s、1m、4h)时间范围越大填的粒度越大
+        match: 必的，匹配条件对象列表。
+        match块中定义了查询过滤条件,模块中参数均为选填项,字段间关系均为AND,对OR的关系暂时不做处理
             match格式示例:
             [
                 {
@@ -70,15 +74,13 @@ def query_log_info(
             数组间关系为OR,数组内关系为AND,同字段数据内数组关系为OR
             
         例子:
-        若查询域名等于jd.com的QPS,则"match":[{"eq":{"host": ["jd.com"]}}]
-        若希望过滤出请求带宽大于3000的数据,则"match":[{"gt":{"bin":3000}}]
-        若希望过滤出请求带宽大于3000且域名等于jd.com的数据,则"match":[{"gt":{"bin":3000},"eq":{"host": ["jd.com"]}}]
-        若希望过滤出请求带宽大于3000且域名等于jd.com或baidu.com的数据,则"match":[{"gt":{"bin":3000},"eq":{"host": ["jd.com","baidu.com"]}}]
+        (1)域名等于jd.com的QPS,则"match":[{"eq":{"host": ["jd.com"]}}]
+        (2)请求带宽大于3000的数据,则"match":[{"gt":{"bin":3000}}]
+        (3)请求带宽大于3000且域名等于jd.com的数据,则"match":[{"gt":{"bin":3000},"eq":{"host": ["jd.com"]}}]
+        (4)请求带宽大于3000且域名等于jd.com或baidu.com的数据,则"match":[{"gt":{"bin":3000},"eq":{"host": ["jd.com","baidu.com"]}}]
         
-        interval: 必填,时序间隔,为空时取该时间段的总体聚合值,粒度有(10s、5m、1s、1h四种单位,例如:1s、2s、1m、4h)时间范围越大填的粒度越大
-    
-        这只是案例:
-        1、帮我查询lbha业务下,域名等于jd.com的请求带宽,时间范围为2025年11月05日0点0分0秒到2025年11月05日10点01分00秒,时间粒度为10s
+        这只是案例，需要根据用户的问题进行替换
+        (1)查询域名jd.com请求带宽,时间:2025年11月05日0点0分0秒到2025年11月05日10点01分00秒,时间粒度为10s
         请求参数:
         bizName="lbha"
         multiresource=["bin"]
@@ -86,7 +88,7 @@ def query_log_info(
         match=[{"eq": {"host": ["erp.jd.com"]}}]
         interval="60s"
         
-        2、帮我查询lbha业务下,vip等于11.189.32.1的请求带宽和响应带宽和QPS数,时间范围为2025年11月05日0点0分0秒到2025年11月05日10点06分00秒,时间粒度为2m
+        2、查询lbha业务下,vip等于11.189.32.1的请求带宽和响应带宽和QPS数,时间范围为2025年11月05日0点0分0秒到2025年11月05日10点06分00秒,时间粒度为2m
         bizName="lbha"
         multiresource=["bin","bout","count"]
         timeRange={"start": "2025-11-05 10:00:00", "end": "2025-11-05 10:06:00"}
@@ -133,24 +135,3 @@ def query_log_info(
 if __name__ == "__main__":
     # 运行MCP服务器
     mcp.run(transport="sse")
-# 使用示例
-if __name__ == "__main__":
-
-    result = query_single_field_sum(
-        
-        bizName="lbha",
-        
-        multiresource=[],
-        
-        timeRange={
-            "start": "2025-11-05 10:00:00",
-            "end": "2025-11-05 10:01:00"
-        },
-        match=[{"eq" : {
-            "host" : ["erp.jd.com"],}}]
-        ,
-        interval="60s"
-    )
-    # print(format_response_data(result))
-
-    print(result)
