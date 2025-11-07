@@ -148,18 +148,18 @@ if __name__ == "__main__":
     "resource": ["count"],
     "timeRange": {
         "start": "2025-11-06 19:00:00",
-        "end": "2025-11-06 19:05:00"
+        "end": "2025-11-07 19:40:00"
     },
     "match": [{
         "eq": {
-            "http_code": ["200"],
-            "host":["jd.com"]
+            # "http_code": ["200"],
+            "host":["api.m.jd.com"]
 
         }
     }],
     "algorithm": {
         "algorithmName": "group",
-        "groupBy": ["host","url"],
+        "groupBy": ["srv_ip"],
         "size":3
     }
 }

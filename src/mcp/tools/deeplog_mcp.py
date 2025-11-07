@@ -227,6 +227,13 @@ def query_log_info_group(
             match=[{"eq": {"http_code": ["404"]}}"]
             interval="2m"
             groupBy=["host","url"]
+        (4)查询服务器'lf-pub-ha1-39.lf.jd.local',QPS,按照host、url分组计数
+            bizName="lbha"
+            resource=["count"]
+            timeRange={"start": "2025-11-05 10:00:00", "end": "2025-11-05 10:06:00"}
+            match=[{"eq": {"hostname": ["lf-pub-ha1-39.lf.jd.local"]}}"]
+            interval="2m"
+            groupBy=["host","url"]
     Returns:
         dict: 日志查询结果
     """

@@ -216,7 +216,7 @@ def domain_node(state: State):
         user_input = str(state["messages"])
     
     system_prompt = """
-        你是一个专业的域名领域专家，根据提供的工具完成域名相关的功能。
+        你是一个专业的域名、日志数据分析领域专家，根据提供的工具完成域名、日志数据检索和分析相关的功能。
         """
         
     prompts = [

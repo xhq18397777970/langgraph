@@ -60,93 +60,323 @@ def create_gradio_interface():
     # 创建聊天界面
     with gr.Blocks(
         title="Director多Agent助手",
-        theme=gr.themes.Soft(),
+        theme=gr.themes.Soft(
+            primary_hue="blue",
+            secondary_hue="cyan",
+            neutral_hue="slate"
+        ),
         css="""
+        /* 全局容器样式 */
         .gradio-container {
-            max-width: 1200px !important;
+            max-width: 1400px !important;
             margin: auto !important;
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        .chat-message {
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 10px;
+        
+        /* 主标题样式 */
+        .main-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            font-size: 2.5rem !important;
+            font-weight: 700 !important;
+            margin-bottom: 2rem !important;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .time-selector-card {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 10px 0;
-            background: #f8f9fa;
+        
+        /* 聊天界面样式 */
+        .chatbot {
+            border: 2px solid #e2e8f0 !important;
+            border-radius: 16px !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1) !important;
+            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%) !important;
         }
+        
+        /* 输入框样式 */
+        .input-textbox {
+            border: 2px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            transition: all 0.3s ease !important;
+            font-size: 16px !important;
+            padding: 12px !important;
+        }
+        
+        .input-textbox:focus {
+            border-color: #667eea !important;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+            transform: translateY(-1px) !important;
+        }
+        
+        /* 按钮样式 */
+        .primary-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border: none !important;
+            border-radius: 10px !important;
+            color: white !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+        }
+        
+        .primary-button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4) !important;
+        }
+        
+        .secondary-button {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%) !important;
+            border: 2px solid #cbd5e1 !important;
+            border-radius: 10px !important;
+            color: #475569 !important;
+            font-weight: 600 !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        .secondary-button:hover {
+            background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%) !important;
+            transform: translateY(-1px) !important;
+        }
+        
+        /* 时间选择按钮样式 */
         .time-button {
-            margin: 2px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
+            color: #475569 !important;
+            font-size: 13px !important;
+            font-weight: 500 !important;
+            padding: 8px 12px !important;
+            margin: 3px !important;
+            transition: all 0.2s ease !important;
+            min-width: 80px !important;
+        }
+        
+        .time-button:hover {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3) !important;
+        }
+        
+        /* 手风琴样式 */
+        .accordion {
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+            margin: 16px 0 !important;
+            overflow: hidden !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+        }
+        
+        .accordion-header {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+            padding: 16px !important;
+            font-weight: 600 !important;
+            color: #334155 !important;
+        }
+        
+        /* 示例问题样式 */
+        .examples {
+            background: linear-gradient(135deg, #fef7ff 0%, #f3e8ff 100%) !important;
+            border: 2px solid #e9d5ff !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 16px 0 !important;
+        }
+        
+        .example-item {
+            background: white !important;
+            border: 1px solid #d8b4fe !important;
+            border-radius: 8px !important;
+            padding: 12px !important;
+            margin: 8px 0 !important;
+            transition: all 0.2s ease !important;
+            cursor: pointer !important;
+        }
+        
+        .example-item:hover {
+            background: #f3e8ff !important;
+            transform: translateX(4px) !important;
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15) !important;
+        }
+        
+        /* 系统信息样式 */
+        .system-info {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%) !important;
+            border: 2px solid #bae6fd !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+        }
+        
+        .system-info h3 {
+            color: #0369a1 !important;
+            font-weight: 700 !important;
+            margin-bottom: 12px !important;
+        }
+        
+        .system-info ul {
+            color: #0c4a6e !important;
+        }
+        
+        /* 时间选择区域样式 */
+        .time-selector-section {
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+            border: 2px solid #bbf7d0 !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            margin: 16px 0 !important;
+        }
+        
+        .time-category-title {
+            color: #166534 !important;
+            font-weight: 700 !important;
+            font-size: 16px !important;
+            margin-bottom: 12px !important;
+            text-align: center !important;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .gradio-container {
+                max-width: 100% !important;
+                padding: 10px !important;
+            }
+            
+            .main-header {
+                font-size: 2rem !important;
+            }
+            
+            .time-button {
+                min-width: 70px !important;
+                font-size: 12px !important;
+                padding: 6px 8px !important;
+            }
+        }
+        
+        /* 动画效果 */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+        
+        /* 加载动画 */
+        .loading-dots {
+            display: inline-block;
+        }
+        
+        .loading-dots:after {
+            content: '...';
+            animation: dots 2s infinite;
+        }
+        
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60%, 100% { content: '...'; }
         }
         """
     ) as demo:
         
         gr.Markdown(
             """
-            # 🤖 Multi-Agent运维线上客服
-            """
+            <div class="main-header fade-in-up">
+                🤖 Multi-Agent 运维线上客服
+            </div>
+            <div style="text-align: center; margin-bottom: 2rem; color: #64748b; font-size: 1.1rem;">
+                🚀 智能化运维助手 | 🔍 Deeplog-ck日志查询 | 🛠️ 跨平台数据收集整合分析
+            </div>
+            """,
+            elem_classes="main-header-container"
         )
-                # 聊天界面
+        
+        # 聊天界面
         chatbot = gr.Chatbot(
-            label="对话记录",
-            height=500,
+            label="💬 对话记录",
+            height=550,
             show_label=True,
             container=True,
-            bubble_full_width=False
+            bubble_full_width=False,
+            elem_classes="chatbot fade-in-up",
+            avatar_images=("🧑‍💻", "🤖")
         )
         
         # 输入框
         msg = gr.Textbox(
-            label="请输入您的问题",
-            placeholder="例如：帮我查询域名信息、查询CK平台日志数据",
+            label="💭 请输入您的问题",
+            placeholder="💡 例如：帮我查询域名信息、查询CK平台日志数据、监控服务器状态...",
             lines=2,
-            max_lines=5
+            max_lines=5,
+            elem_classes="input-textbox fade-in-up"
         )
         
         # 按钮组
-        with gr.Row():
-            submit_btn = gr.Button("发送", variant="primary", scale=2)
-            clear_btn = gr.Button("清空对话", variant="secondary", scale=1)
+        with gr.Row(elem_classes="fade-in-up"):
+            submit_btn = gr.Button(
+                "🚀 发送",
+                variant="primary",
+                scale=2,
+                elem_classes="primary-button"
+            )
+            clear_btn = gr.Button(
+                "🗑️ 清空对话",
+                variant="secondary",
+                scale=1,
+                elem_classes="secondary-button"
+            )
             
             
         # 时间选择卡片
-        with gr.Accordion("🕒 快速时间选择", open=False):
+        with gr.Accordion("🕒 快速时间选择", open=False, elem_classes="accordion time-selector-section fade-in-up"):
             with gr.Row():
                 with gr.Column(scale=1):
-                    gr.Markdown("**相对时间**")
+                    gr.Markdown(
+                        "<div class='time-category-title'>⏰ 相对时间</div>",
+                        elem_classes="time-category-header"
+                    )
                     
                     with gr.Row():
-                        last_5min = gr.Button("最近5分钟", size="sm",min_width=60, elem_classes="time-button")
-                        last_15min = gr.Button("最近15分钟", size="sm",min_width=60, elem_classes="time-button")
-                        last_30min = gr.Button("最近30分钟", size="sm", min_width=60,elem_classes="time-button")
+                        last_5min = gr.Button("⚡ 最近5分钟", size="sm", elem_classes="time-button")
+                        last_15min = gr.Button("🔥 最近15分钟", size="sm", elem_classes="time-button")
+                        last_30min = gr.Button("⭐ 最近30分钟", size="sm", elem_classes="time-button")
                     
                     with gr.Row():
-                        last_1hour = gr.Button("最近1小时", size="sm",min_width=60, elem_classes="time-button")
-                        last_3hours = gr.Button("最近3小时", size="sm",min_width=60, elem_classes="time-button")
-                        last_6hours = gr.Button("最近6小时", size="sm",min_width=60, elem_classes="time-button")
+                        last_1hour = gr.Button("🚀 最近1小时", size="sm", elem_classes="time-button")
+                        last_3hours = gr.Button("💫 最近3小时", size="sm", elem_classes="time-button")
+                        last_6hours = gr.Button("🌟 最近6小时", size="sm", elem_classes="time-button")
                     
                     with gr.Row():
-                        last_12hours = gr.Button("最近12小时", size="sm", min_width=60,elem_classes="time-button")
-                        last_24hours = gr.Button("最近24小时", size="sm",min_width=60, elem_classes="time-button")
-                        last_7days = gr.Button("最近7天", size="sm",min_width=60, elem_classes="time-button")
+                        last_12hours = gr.Button("🌙 最近12小时", size="sm", elem_classes="time-button")
+                        last_24hours = gr.Button("📅 最近24小时", size="sm", elem_classes="time-button")
+                        last_7days = gr.Button("📆 最近7天", size="sm", elem_classes="time-button")
                 
                 with gr.Column(scale=1):
-                    gr.Markdown("**今日时间**")
+                    gr.Markdown(
+                        "<div class='time-category-title'>📍 今日时间</div>",
+                        elem_classes="time-category-header"
+                    )
                     
                     with gr.Row():
-                        today_morning = gr.Button("今天上午 (08:00-12:00)", size="sm", elem_classes="time-button")
-                        today_afternoon = gr.Button("今天下午 (12:00-18:00)", size="sm", elem_classes="time-button")
+                        today_morning = gr.Button("🌅 今天上午 (08:00-12:00)", size="sm", elem_classes="time-button")
+                        today_afternoon = gr.Button("☀️ 今天下午 (12:00-18:00)", size="sm", elem_classes="time-button")
                     
                     with gr.Row():
-                        today_evening = gr.Button("今天晚上 (18:00-22:00)", size="sm", elem_classes="time-button")
-                        today_night = gr.Button("今天夜间 (22:00-02:00)", size="sm", elem_classes="time-button")
+                        today_evening = gr.Button("🌆 今天晚上 (18:00-22:00)", size="sm", elem_classes="time-button")
+                        today_night = gr.Button("🌃 今天夜间 (22:00-02:00)", size="sm", elem_classes="time-button")
                     
                     with gr.Row():
-                        today_all = gr.Button("今天全天", size="sm", elem_classes="time-button")
-                        today_working = gr.Button("工作时间 (09:00-18:00)", size="sm", elem_classes="time-button")
+                        today_all = gr.Button("🔄 今天全天", size="sm", elem_classes="time-button")
+                        today_working = gr.Button("💼 工作时间 (09:00-18:00)", size="sm", elem_classes="time-button")
                 
 
         
@@ -223,9 +453,9 @@ def create_gradio_interface():
         def format_time_message(start_time, end_time, description=None):
             """格式化时间选择消息"""
             if description:
-                return f"时间段：{description} ({start_time} 到 {end_time})"
+                return f"时间段：{description} ({start_time} 到 {end_time})\n"
             else:
-                return f"时间段：{start_time} 到 {end_time}"
+                return f"时间段：{start_time} 到 {end_time}\n"
         
         def append_time_to_input(current_input, start_time, end_time, description=None):
             """将时间信息添加到输入框"""
