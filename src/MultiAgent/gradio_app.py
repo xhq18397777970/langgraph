@@ -294,7 +294,15 @@ def create_gradio_interface():
                 🤖 Multi-Agent 运维线上客服
             </div>
             <div style="text-align: center; margin-bottom: 2rem; color: #64748b; font-size: 1.1rem;">
-                🚀 智能化运维助手 | 🔍 Deeplog-ck日志查询 | 🛠️ 跨平台数据收集整合分析
+                <a href="https://np.jd.com/" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 600; transition: all 0.3s ease;">
+                    🚀 智能化运维助手
+                </a> | 
+                <a href="http://deeplog-ck.jd.com/query/#" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 600; transition: all 0.3s ease;">
+                    🔍 Deeplog-ck日志查询
+                </a> | 
+                <a href="http://npa-test.jd.com/" target="_blank" style="color: #667eea; text-decoration: none; font-weight: 600; transition: all 0.3s ease;">
+                    🛠️ 跨平台数据收集整合分析
+                </a>
             </div>
             """,
             elem_classes="main-header-container"
@@ -314,7 +322,7 @@ def create_gradio_interface():
         # 输入框
         msg = gr.Textbox(
             label="💭 请输入您的问题",
-            placeholder="💡 例如：帮我查询域名信息、查询CK平台日志数据、监控服务器状态...",
+            placeholder="💡 例如：帮我查域名信息、查询CK平台日志数据、监控服务器状态...",
             lines=2,
             max_lines=5,
             elem_classes="input-textbox fade-in-up"
@@ -334,7 +342,7 @@ def create_gradio_interface():
                 scale=1,
                 elem_classes="secondary-button"
             )
-            
+        
             
         # 时间选择卡片
         with gr.Accordion("🕒 快速时间选择", open=False, elem_classes="accordion time-selector-section fade-in-up"):
