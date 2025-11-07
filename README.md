@@ -19,13 +19,27 @@
 
 ## 安装和运行
 
-### 1. 安装依赖
+### 1. 创建conda环境
+
+首先创建一个新的conda环境（推荐使用Python 3.10）：
+
+```bash
+# 创建名为langgraph的conda环境
+conda create -n langgraph python=3.10
+
+# 激活环境
+conda activate langgraph
+```
+
+### 2. 安装依赖
+
+在激活的conda环境中安装项目依赖：
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 环境配置
+### 3. 环境配置
 
 确保设置以下环境变量：
 
@@ -43,9 +57,15 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-### 3. 启动应用
+### 4. 启动应用
+
+确保conda环境已激活，然后启动应用：
 
 ```bash
+# 确保激活conda环境
+conda activate langgraph
+
+# 进入应用目录并启动
 cd src/MultiAgent
 python gradio_app.py
 ```
@@ -91,27 +111,35 @@ src/MultiAgent/
 
 ## 注意事项
 
-1. 确保网络连接正常，能够访问DeepSeek API
-2. API密钥需要有足够的调用额度
-3. 首次运行可能需要下载相关依赖包
-4. 如遇到问题，请检查环境变量配置和网络连接
+1. **环境管理**：建议使用conda环境管理，避免依赖冲突
+2. **Python版本**：推荐使用Python 3.10，确保兼容性
+3. **网络连接**：确保网络连接正常，能够访问DeepSeek API
+4. **API密钥**：API密钥需要有足够的调用额度
+5. **依赖安装**：首次运行可能需要下载相关依赖包
+6. **环境激活**：每次运行前确保conda环境已激活
 
 ## 故障排除
 
 ### 常见问题
 
-1. **API密钥错误**
+1. **conda环境问题**
+   - 确认conda已正确安装：`conda --version`
+   - 确认环境已激活：`conda activate langgraph`
+   - 如果环境不存在，重新创建：`conda create -n langgraph python=3.10`
+
+2. **API密钥错误**
    - 检查 `DEEPSEEK_API_KEY` 环境变量是否正确设置
    - 确认API密钥有效且有足够额度
 
-2. **模块导入错误**
+3. **模块导入错误**
+   - 确认已激活conda环境：`conda activate langgraph`
    - 确认已安装所有依赖：`pip install -r requirements.txt`
    - 检查Python路径配置
 
-3. **网络连接问题**
+4. **网络连接问题**
    - 确认能够访问 `https://api.deepseek.com`
    - 检查防火墙和代理设置
 
-4. **Gradio界面无法访问**
+5. **Gradio界面无法访问**
    - 检查端口7860是否被占用
    - 尝试更改端口号或重启应用
