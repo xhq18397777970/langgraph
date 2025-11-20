@@ -7,7 +7,7 @@ from typing import List, Dict, Optional, Any, Union
 from fastmcp import FastMCP
 
 # 创建MCP服务器实例
-mcp = FastMCP("deep_log 日志数据查询服务", port=10025)
+mcp = FastMCP("deep_log 日志数据查询服务", port=10026)
 
 # 配置参数
 CONFIG_deeplog_api = {
