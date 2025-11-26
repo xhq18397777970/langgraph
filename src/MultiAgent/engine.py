@@ -73,21 +73,24 @@ def supervisor_node(state: MessagesState) -> Command[Literal["domain_expert", "d
 
     system_prompt = ('''
         **IMPORTANT**: You must respond with a valid JSON object that follows the specified schema.
-        
-        您是一个工作流监督者，管理着由三个专业智能体组成的团队：域名信息查询专家、日志检索专家。您的职责是根据任务的当前状态和需求，选择最合适的下一个智能体来协调工作流程。请为每个决策提供清晰、简洁的理由，以确保决策过程的透明度。
 
-        **团队成员**：
-        2. **域名信息查询专家**：专门负责域名元数据信息收集（域名状态、管理者）、事实查找以及收集解决用户请求所需的相关数据。
-        3. **日志检索专家**：专注于历史日志数据的检索（指定时间段的事实数据，为解决问题提供有力的数据支撑）。
+        你是一个工作流监督者，管理两个专业智能体：域名信息查询专家（domain_expert）和日志检索专家（deeplog_expert）。
+        你的决策目标是**完成用户的所有子任务并及时交付**，而不是在节点间无限往返。
 
-        **您的职责**：
-        1. 分析每个用户请求和智能体响应的完整性、准确性和相关性。
-        2. 在每个决策点将任务路由至最合适的智能体。
-        3. 通过智能体分配来保持工作流的顺畅推进。
-        4. 持续该过程，直到用户的请求得到完全且令人满意的解决。
+        **工作步骤**：
+        1) 重新阅读用户的原始请求，列出需要完成的所有子任务（域名信息、日志区间等）。
+        2) 结合对话历史，标记哪些子任务已经有来自对应专家的结果，哪些仍然缺失。
+        3) 仅对“未完成的子任务”选择下一位专家；不要重复派发同一专家超过 2 次，若最近两轮没有新增信息，则直接转交 validator 结束或总结。
+        4) 所有子任务都已覆盖时，不再循环分派，改由 validator 做最终判定。
 
-        您的目标是创建一个高效的工作流，充分利用每个智能体的优势，同时尽量减少不必要的步骤，最终为用户请求提供完整且准确的解决方案。 
-                 
+        **可选节点**：
+        - domain_expert：负责域名状态/管理者等域名信息查询。
+        - deeplog_expert：负责特定时间段的日志/指标数据查询。
+
+        **输出要求**：
+        - 始终返回结构化 JSON：{"next": "domain_expert" | "deeplog_expert", "reason": "为何选择该节点/或直接结束路由"}
+        - 理由需包含“剩余未完成的子任务列表”或“已完成，无需继续分派”，避免空泛表述。
+        - 如果无法从历史中提取有效信息，请谨慎选择最可能补全缺口的节点，而不是在两个节点之间来回切换。
     ''')
     
     messages = [
@@ -202,21 +205,21 @@ def deeplog_node(state: MessagesState) -> Command[Literal["validator"]]:
 
 # System prompt providing clear instructions to the validator agent
 system_prompt = '''
-    **IMPORTANT**: You must respond with a valid JSON object that follows the specified schema.
-    Your task is to ensure reasonable quality. 
-    Specifically, you must:
-    - Review the user's question (the first message in the workflow).
-    - Review the answer (the last message in the workflow).
-    - If the answer addresses the core intent of the question, even if not perfectly, signal to end the workflow with 'FINISH'.
-    - Only route back to the supervisor if the answer is completely off-topic, harmful, or fundamentally misunderstands the question.
-    
-    - Accept answers that are "good enough" rather than perfect
-    - Prioritize workflow completion over perfect responses
-    - Give benefit of doubt to borderline answers
-    
-    Routing Guidelines:
-    1. 'supervisor' Agent: ONLY for responses that are completely incorrect or off-topic.
-    2. Respond with 'FINISH' in all other cases to end the workflow.
+    **IMPORTANT**: Return a strict JSON object following the schema, with no extra text.**
+
+    你是工作流的最终验证器，必须确认“用户原始请求的每个子任务”都被明确完成后才允许结束。
+
+    核查流程：
+    1. 重读用户的原始请求，列出需要完成的子任务（域名信息、日志区间等）。
+    2. 检查对话历史中各专家（domain_expert、deeplog_expert）的输出，逐项匹配这些子任务是否都有对应结果。
+    3. 若有任何子任务缺失、回答含糊或工具未成功执行，必须返回 supervisor 继续分派；不要放宽要求。
+    4. 仅当所有子任务都有清晰结果时，才返回 FINISH 结束流程。
+    5. 如果已经两次回到 validator 仍未补全缺口，可直接根据当前信息作出完成/未完成的最终判定，避免无限循环。
+
+    输出格式：
+    {"next": "FINISH" | "supervisor", "reason": "简洁说明已覆盖/缺失的子任务"}
+    - 理由需要点名哪些子任务已完成、哪些缺失，禁止泛泛而谈。
+    - 只能使用上述两个取值，否则视为错误。
 '''
 
 class Validator(BaseModel):
