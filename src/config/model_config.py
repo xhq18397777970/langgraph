@@ -14,6 +14,7 @@ def get_deepseek_model(temperature=0.2):
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         temperature=temperature,
+        # model_kwargs={"response_format": None} 
     )
     return model
 
