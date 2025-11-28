@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "domain-info-server": {
+      "url": "http://127.0.0.1:10025/sse",
+      "transport": "sse",
+      "description": "域名信息查询服务"
+    },
+    "deeplog-ck-server": {
+      "url": "http://127.0.0.1:10026/sse", 
+      "transport": "sse",
+      "description": "日志数据查询服务"
+    }
+  },
+  "settings": {
+    "connection_timeout": 30,
+    "retry_attempts": 3,
+    "debug_mode": true
+  }
+}

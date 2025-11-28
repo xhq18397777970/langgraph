@@ -12,21 +12,46 @@ import os
 from langchain_openai import ChatOpenAI
 import json
 
-
-def get_deepseek_model(temperature=0.2):
-    """
-    配置并返回 DeepSeek 模型实例
+def create_sync_tool_wrapper(async_tool):
+    """创建同步工具包装器，将异步 MCP 工具转换为同步工具"""
     
-    Returns:
-        ChatOpenAI: 配置好的 DeepSeek 模型实例
-    """
-    model = ChatOpenAI(
-        model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
-        api_key=os.getenv("DEEPSEEK_API_KEY"),
-        base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
-        temperature=temperature,
+    def sync_func(**kwargs):
+        """同步包装函数，使用 asyncio.run 调用异步工具"""
+        try:
+            # 调用异步工具的 coroutine 函数
+            result = asyncio.run(async_tool.coroutine(**kwargs))
+            return result
+        except Exception as e:
+            print(f"🔍 [DEBUG] 同步包装器执行异常: {e}")
+            raise e
+    
+    # 创建新的同步 StructuredTool
+    sync_tool = StructuredTool.from_function(
+        func=sync_func,
+        name=async_tool.name,
+        description=async_tool.description,
+        args_schema=async_tool.args_schema,
+        return_direct=getattr(async_tool, 'return_direct', False)
     )
-    return model
+    
+    print(f"🔍 [DEBUG] 创建同步工具包装器: {async_tool.name}")
+    return sync_tool
+
+def convert_async_tools_to_sync(async_tools):
+    """将异步工具列表转换为同步工具列表"""
+    sync_tools = []
+    for tool in async_tools:
+        if hasattr(tool, 'coroutine') and tool.coroutine is not None:
+            # 这是一个异步工具，需要包装
+            sync_tool = create_sync_tool_wrapper(tool)
+            sync_tools.append(sync_tool)
+            print(f"🔍 [DEBUG] 转换异步工具: {tool.name} -> 同步工具")
+        else:
+            # 这已经是同步工具，直接使用
+            sync_tools.append(tool)
+            print(f"🔍 [DEBUG] 保持同步工具: {tool.name}")
+    
+    return sync_tools
 #配置加载
 
 load_dotenv()
@@ -35,7 +60,6 @@ load_dotenv()
 def supervisor_node(state: MessagesState) -> Command[Literal["domain", "deeplog"]]:
     
     llm = get_deepseek_model(temperature=0.4)
-    
     # supervisor_system_prompt = '''
     #     **最终输出格式要求**:
     #     你的**唯一**输出必须是一个有效的JSON对象。不要在JSON对象前后添加任何解释性文字、代码块标记（如```json）或任何其他内容。
@@ -71,17 +95,16 @@ def supervisor_node(state: MessagesState) -> Command[Literal["domain", "deeplog"
 
     # '''
     supervisor_system_prompt = '''
-        你是一个工作流调度器，负责将用户任务路由到合适的专家节点。
-        
-        **你的唯一输出必须是一个有效的JSON对象，无任何额外文字。**
-        
+        你是一个工作流调度器，负责将用户任务分配给合适的专家节点。
+
+        输出格式: JSON
         {
             "next": "domain" 或 "deeplog",
             "reason": "一句简洁的决策依据"
         }
         
-        **节点职责**:
-        - `domain`: 处理域名相关的查询请求。
+        **各节点职责**:
+        - `domain`: 处理域名元数据(注册状态、管理者)相关的查询请求。
         - `deeplog`: 处理指定时间段的历史指标数据查询请求。
         
         **路由规则**:
@@ -92,15 +115,11 @@ def supervisor_node(state: MessagesState) -> Command[Literal["domain", "deeplog"
         3.  如果所有任务均已完成，则你的逻辑应该由 `validator` 来处理，你只需在收到新请求时进行路由。
         
         **理由示例**:
-        -   `{"next": "domain", "reason": "存在未处理的域名查询请求。"}`
-        -   `{"next": "deeplog", "reason": "域名查询已完成，需处理指标数据查询。"}`
-        -   `{"next": "domain", "reason": "收到新的域名查询请求。"}'
-        
-        **【严重警告】**: "next" 字段的值必须是 "domain" 或 "deeplog"，否则系统将崩溃。
+        -   `{"next": "domain", "reason": "当前已完成xx子任务,待完成xx任务"}`
         '''
     messages = [
-        {"role": "system", "content": supervisor_system_prompt},  
-    ] + state["messages"] 
+        {"role": "system", "content": supervisor_system_prompt}, 
+        ] + state["messages"] 
 
     response = llm.invoke(messages)
 
@@ -252,7 +271,6 @@ def validator_node(state: MessagesState) -> Command[Literal["supervisor", "__end
         else:
             print(f"--- 工作流转移: validator → supervisor ---")
         
-        
         return Command(
             update={
                 "messages": [
@@ -298,10 +316,10 @@ def history_info(time):
 
     """
     根据指定的时间范围，检索域名的QPS数据
-    输入：域名，时间段
+    输入：时间段
     输出：域名指定时间段，QPS
     Args:
-        time (str): 描述目标时间范围的字符串。可以是相对时间（例如 'yesterday', 'last 2 hours', '从昨天下午2点到4点'）或绝对时间（例如 '2023-10-27T14:00:00Z'）。
+        time (str):如"2023-10-1-00:00:00至2023-10-1-00:05:00"
     """
     print("[history_info]工具被调用")
     return f"在该时间段：{time}，QPS平均值是：1.2"
@@ -309,26 +327,26 @@ def history_info(time):
 
 def domain_node(state: MessagesState) -> Command[Literal["validator"]]:
     
-    llm = get_deepseek_model(0.3)
+    llm = get_deepseek_model(0.1)
     domain_system_prompt="""
-    你是一个域名查询工具的执行代理。你的唯一职责是调用工具并直接、完整地返回其结果。
+        你是域名查询工具的执行器。
+        你的任务是：从用户输入中提取域名，调用工具，然后只输出工具的返回结果。
+        你必须忽略用户输入中所有与域名无关的内容。        
         
-        严格遵循以下规则：
-        1. 分析用户请求，提取其中的域名。
-        2. 调用已有工具。
-        3. 将工具返回的内容作为你的最终回答，不得添加任何解释、分析、总结或建议。
-        
-        案例：
-        - 用户输入："查询google.com"
-        - 工具返回："域名 google.com 的注册信息如下：..."
-        - 你的最终回答必须是："域名 google.com 的注册信息如下：..."
+        你的回答必须严格按照格式：
+        {
+            "状态":"执行成功"
+            "任务":"",
+            "调用工具":"",
+            "返回结果":"",
+            ""
+        }
     """
-    
+
     state_with_prompt = state.copy()
     state_with_prompt["messages"] = [
         AIMessage(content=domain_system_prompt, name="system")
     ] + state["messages"]
-    
     
     domain_agent = create_react_agent(
         llm,  
@@ -337,7 +355,8 @@ def domain_node(state: MessagesState) -> Command[Literal["validator"]]:
     )
     # result = domain_agent.invoke(state)
     result = domain_agent.invoke(state_with_prompt)
-    # print(result)
+    final_node_output = result["messages"][-1].content
+    print(f"--- Domain Node 输出结果 ---\n{final_node_output}")
     print(f"--- 工作流转移: domain → Validator ---")
 
     return Command(
@@ -354,14 +373,21 @@ def domain_node(state: MessagesState) -> Command[Literal["validator"]]:
     
 def deeplog_node(state: MessagesState) -> Command[Literal["validator"]]:
     
-    llm = get_deepseek_model(0.3)
+    llm = get_deepseek_model(0.1)
     deeplog_system_prompt="""
         你是一个日志查询工具的执行代理。你的唯一职责是调用已有工具并直接、完整地返回其结果。
         
-        严格遵循以下规则：
-        1. 分析用户请求，提取其中的时间范围。
-        2. 调用已有工具。
-        3. 将工具返回的内容作为你的最终回答，不得添加任何解释、分析、总结或建议。
+        你的回答必须严格按照格式：
+        {
+            "任务":"",
+            "调用工具":"",
+            "返回结果":""
+        }
+        
+        你是日志查询工具的执行器。
+        你的任务是：从用户输入中提取时间范围，调用工具，然后只输出工具的返回结果。
+        你必须忽略用户输入中所有与时间范围无关的内容。
+ 
     """
     state_with_prompt = state.copy()
     state_with_prompt["messages"] = [
@@ -376,7 +402,8 @@ def deeplog_node(state: MessagesState) -> Command[Literal["validator"]]:
     )
     
     result = deeplog_agent.invoke(state_with_prompt)
-    # print(result)
+    final_node_output = result["messages"][-1].content
+    print(f"--- Deeplog Node 输出结果 ---\n{final_node_output}")
     print(f"--- 工作流转移: deeplog → Validator ---")
 
     return Command(
@@ -402,8 +429,6 @@ graph.add_node("validator", validator_node)
 graph.add_edge(START, "supervisor")  
 app = graph.compile()
 
-
-
  
 if __name__ == "__main__":
     print("--- Agent任务执行 ---")
@@ -411,7 +436,7 @@ if __name__ == "__main__":
     # 1. 定义要注入到图中的初始状态（测试用例）
     initial_state = {
         "messages": [
-            HumanMessage(content="帮我查询域名api.m.jd.com域名的注册信息，并且帮我查询其在2025年11月20日11:00:00到11:05:00时间段的QPS")
+            HumanMessage(content="帮我查询域名api.m.jd.com域名的注册信息，并且帮我查询其在2023年11月20日11:00:00到11:05:00时间段的QPS")
         ]
     }
     
