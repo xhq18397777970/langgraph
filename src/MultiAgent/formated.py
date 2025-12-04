@@ -393,28 +393,7 @@ class DeeplogExecutionResult(BaseModel):
  
 def deeplog_node(state: OverallState) -> Command[Literal["__end__"]]:
     
-    llm = get_deepseek_model(0.3)
-    
-    final_summary_prompt = f"""
-    你是一个负责日志检索的专家。你的任务是：
-    1. 理解用户的查询需求。
-    2. 从可用工具中选择正确的工具，并提取必要参数进行调用。
-    3. 工具调用成功后，你的任务就完成了。
- 
-    **你的最终输出必须是一个简单的 JSON 对象，只包含两个字段**：
-    - `tool_name`: 你调用的工具的名称。
-    - `status`: 字符串，固定为 "success"。
- 
-    **输出格式**:
-    不要在JSON前后添加任何解释性文字、代码块标记或任何其他内容。
-    你的**完整输出**必须是类似这样的格式：
-    {{"tool_name": "npa_analysis_prometheus_core", "status": "success"}}
-    """
-    
-    state_with_prompt = state.copy()
-    state_with_prompt["messages"] = [
-        AIMessage(content=final_summary_prompt, name="system")
-    ] + state["messages"]
+    llm = get_deepseek_model(0.6)
  
     print("🔍 [DEBUG] 创建 MCP 客户端...")
     client = MultiServerMCPClient(
@@ -435,7 +414,9 @@ def deeplog_node(state: OverallState) -> Command[Literal["__end__"]]:
         tools=sync_tools,
     )
  
-    result = deeplog_agent.invoke(state_with_prompt)
+    result = deeplog_agent.invoke(state)
+    print('-'*50)
+    print(state["messages"])
     
     print(f"🛠️ [DEEPLOG RAW] Agent 最终输出:\n{result['messages'][-1].content}\n" + "="*40)
  
@@ -449,30 +430,37 @@ def deeplog_node(state: OverallState) -> Command[Literal["__end__"]]:
  
     if not raw_tool_result:
         raise ValueError("Agent 没有成功调用任何工具或未找到工具结果。")
- 
-    try:
-        final_message_content = result["messages"][-1].content.strip()
-        agent_output = json.loads(final_message_content)
-        
-        if agent_output.get("status") != "success":
-            raise ValueError("Agent 报告任务失败")
-            
-        print(f"--- Deeplog Node 执行成功，准备前往 Validator ---")
- 
-        # --- 【核心修改】返回 Command，将原始数据存入独立字段 ---
-        # 不再操作 messages 列表，只更新我们自定义的字段
-        return Command(
+    
+    return Command(
             update={
                 # 将原始工具结果字符串存入一个独立的字段
                 "deeplog_node_tool_results": raw_tool_result
             },
             goto="__end__",
         )
-    except Exception as e:
-        print("--- Deeplog Node 输出解析失败 ---")
-        print(f"Agent 原始回复: {result['messages'][-1].content}")
-        print(f"Pydantic/JSON 校验错误: {e}")
-        raise ValueError(f"Deeplog Agent 未能返回有效的JSON格式决策。错误: {e}") from e
+    # try:
+    #     final_message_content = result["messages"][-1].content.strip()
+    #     agent_output = json.loads(final_message_content)
+        
+    #     if agent_output.get("status") != "success":
+    #         raise ValueError("Agent 报告任务失败")
+            
+    #     print(f"--- Deeplog Node 执行成功，准备前往 Validator ---")
+ 
+    #     # --- 【核心修改】返回 Command，将原始数据存入独立字段 ---
+    #     # 不再操作 messages 列表，只更新我们自定义的字段
+    #     return Command(
+    #         update={
+    #             # 将原始工具结果字符串存入一个独立的字段
+    #             "deeplog_node_tool_results": raw_tool_result
+    #         },
+    #         goto="__end__",
+    #     )
+    # except Exception as e:
+    #     print("--- Deeplog Node 输出解析失败 ---")
+    #     print(f"Agent 原始回复: {result['messages'][-1].content}")
+    #     print(f"Pydantic/JSON 校验错误: {e}")
+    #     raise ValueError(f"Deeplog Agent 未能返回有效的JSON格式决策。错误: {e}") from e
 
 
 
@@ -525,7 +513,7 @@ if __name__ == "__main__":
     # 1. 定义要注入到图中的初始状态（测试用例）
     initial_state = {
         "messages": [
-            HumanMessage(content="请查询集群lf-lan-ha1在2025-12-03 09:43:14到2025-12-03 10:13:14的CPU指标数据")
+            HumanMessage(content="查询集群lf-lan-ha1在时间范围2025-12-04 14:00:00到2025-12-04 14:10:10的CPU指标数据")
         ]
     }
     
@@ -535,8 +523,6 @@ if __name__ == "__main__":
         print("\n" + "="*20 + " 工作流执行完毕，开始分析结果 " + "="*20)
         
         cpu_data = final_state.get("deeplog_node_tool_results")
-        
-        
         
         print(parse_simple(cpu_data))
         

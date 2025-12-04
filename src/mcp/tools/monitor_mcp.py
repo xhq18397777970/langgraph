@@ -40,21 +40,19 @@ def npa_analysis_prometheus_core(
     end_time: str
 ) -> dict:
     """
-    获取指定集群在指定时间段的CPU指标数据
+            工具功能：查询指定时间段内集群的CPU指标，所需三个必填参数
+                
+                参数说明：
+                - groupname: 集群名称（必填）。（例如lf-lan-ha1）
+                - begin_time: 开始时间（必填），格式为 "YYYY-MM-DD HH:MM:SS"。(如2025-10-04 14:00:00)
+                - end_time: 结束时间（必填），格式为 "YYYY-MM-DD HH:MM:SS"。(如2025-10-04 14:10:10)
+                
+                时间格式处理：
+                - 用户可能以 "2025-12-04 14:00:00到2025-12-04 14:10:10" 格式提供时间。
+                - 必须将其拆分为两个参数：
+                  * begin_time: "2025-12-04 14:00:00"
+                  * end_time: "2025-12-04 14:10:10"
     
-    Args:
-    - groupname: 集群名称（示例："lf-lan-ha1"）
-    - 起止时间(例如从2023年1月1日0点0分0秒到2023年1月2日10点10分10秒("begin_time": "2023-01-01 00:00:00", "end_time": "2023-01-02 10:00:00")
-    
-    Returns:
-        dict:查询结果
-    
-    example:
-        查集群lf-lan-ha1在2025-12-03 09:43:14到2025-12-03 10:13:14的CPU指标数据
-        请求参数：
-            groupname="lf-lan-ha1",
-            begin_time="2025-12-03 09:43:14",
-            end_time="2025-12-03 10:13:14"
     """
     postdata = {"groupname":groupname,"begin_time":begin_time,"end_time":end_time}
     apiurl= "/prod-api/api/v2/analysis/prometheus/core?format=json"
@@ -62,8 +60,8 @@ def npa_analysis_prometheus_core(
     cpu_result = {
         "code":result['code'],
         "data":result['data'][0]
-        # "unit_char":result['data'][0]["unit"],
-        # "unit":"使用率"
+    #     # "unit_char":result['data'][0]["unit"],
+    #     # "unit":"使用率"
     }
     return cpu_result
 
