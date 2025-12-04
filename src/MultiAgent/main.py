@@ -55,7 +55,7 @@ def convert_async_tools_to_sync(async_tools):
     
     return sync_tools
 #配置加载
-def get_deepseek_model(temperature=0.2):
+def get_deepseek_model(temperature=0.3):
     """
     配置并返回 DeepSeek 模型实例
     
@@ -71,8 +71,6 @@ def get_deepseek_model(temperature=0.2):
     )
     return model
 
-
-load_dotenv()
 
 
 
@@ -123,7 +121,7 @@ def supervisor_node(state: OverallState) -> Command[Literal["domain", "deeplog"]
  
     **各节点职责**:
     - `domain`: 处理域名元数据(注册状态、管理者)相关的查询请求。
-    - `deeplog`: 处理指定时间段的历史指标数据查询请求。
+    - `deeplog`: 查询某时间段的指标数据。（如查询集群CPU、网络指标）
     
     **路由规则**:
     1.  检查对话历史，找出尚未完成的用户子任务。
@@ -375,21 +373,6 @@ def domain_node(state: OverallState) -> Command[Literal["__end__"]]:
         print(f"Pydantic 校验错误: {e}")
         # 抛出明确的异常
         raise ValueError(f"Domain Agent 未能返回有效的JSON格式决策。错误: {e}") from e
-
-class DeeplogExecutionResult(BaseModel):
-    """
-    域名专家节点执行结果的模型。
-    """
-    tool_name: str = Field(
-        ...,
-        description="被调用的工具的精确名称"
-    )
-    status: str = Field(
-        ...,
-        description="工具调用的结果是否成功(success or failed)"
-    )
-
-
  
 def deeplog_node(state: OverallState) -> Command[Literal["__end__"]]:
     
@@ -492,7 +475,6 @@ def draw_graph_image():
         print(f"⚠️ 无法生成流程图图片: {e}")
 
 
-import json
 
 def parse_simple(returned_string):
     """
