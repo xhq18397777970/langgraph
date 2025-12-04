@@ -225,10 +225,10 @@ if __name__ == "__main__":
         print("\n" + "="*20 + " 工作流执行完毕，开始分析结果 " + "="*20)
         
         cpu_data = parse_simple(final_state.get("deeplog_node_tool_results"))
-        analysis_result = final_state.get("deeplog_analysis_result")
+        llm_analysis_result = final_state.get("deeplog_analysis_result")
         
         print(cpu_data)
-        print(analysis_result)
+        print(llm_analysis_result)
     
         # if analysis_result:
         #     print(f"\n{analysis_result}")
