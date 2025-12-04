@@ -78,7 +78,7 @@ class OverallState(TypedDict):
     messages: Annotated[list, "LangGraph standard messages"]
     
     deeplog_node_tool_results: str  #存储工具调用原始结果
-    eeplog_analysis_result: str  # 用于存储模型的最终分析结果
+    deeplog_analysis_result: str  # 用于存储模型的最终分析结果
 
 
 
@@ -137,9 +137,22 @@ def deeplog_node(state: OverallState) ->Command:
  
     result = deeplog_agent.invoke({"messages": messages_with_system})
 
-
     print(f"🛠️ [DEEPLOG RAW] Agent 最终输出:\n{result['messages'][-1].content}\n" + "="*40)
  
+ 
+    # 提取模型的最终回答
+    final_analysis = None
+    for message in reversed(result["messages"]):
+        if isinstance(message, AIMessage) and not isinstance(message, ToolMessage):
+            final_analysis = message.content
+            break
+    
+    if final_analysis:
+        print(f"📊 [DEEPLOG ANALYSIS] 模型分析结果:\n{final_analysis}\n" + "="*40)
+    else:
+        print("⚠️ [DEEPLOG ANALYSIS] 未找到模型的分析结果")
+        final_analysis = "未生成分析结果"
+        
     # --- 更健壮地提取原始工具结果 ---
     raw_tool_result = None
     # 从消息历史中倒序查找，确保找到的是最后一次工具调用的结果
@@ -153,8 +166,10 @@ def deeplog_node(state: OverallState) ->Command:
     
     return Command(
             update={
-                # 将原始工具结果字符串存入一个独立的字段
-                "deeplog_node_tool_results": raw_tool_result
+                # 原始工具结果字符串存入一个独立的字段
+                "deeplog_node_tool_results": raw_tool_result,
+                # 模型的最终分析结果也存入state
+                "deeplog_analysis_result": final_analysis
             },
             goto="__end__",
         )
@@ -209,9 +224,16 @@ if __name__ == "__main__":
         final_state = app.invoke(initial_state)
         print("\n" + "="*20 + " 工作流执行完毕，开始分析结果 " + "="*20)
         
-        cpu_data = final_state.get("deeplog_node_tool_results")
+        cpu_data = parse_simple(final_state.get("deeplog_node_tool_results"))
+        analysis_result = final_state.get("deeplog_analysis_result")
         
-        print(parse_simple(cpu_data))
+        print(cpu_data)
+        print(analysis_result)
+    
+        # if analysis_result:
+        #     print(f"\n{analysis_result}")
+        # else:
+        #     print("未生成分析结果")
         
     except Exception as e:
         print(f"执行出错: {e}")
